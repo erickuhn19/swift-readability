@@ -46,6 +46,7 @@ final class MetadataParser: ProcessorBase {
         let values = getMetaValues(document)
 
         let metadata = ArticleMetadata()
+        metadata.creatorNames = jsonld.creatorNames
 
         // title
         if let value = jsonld.title, !value.isEmpty {
@@ -187,6 +188,7 @@ final class MetadataParser: ProcessorBase {
     // MARK: - JSON-LD
 
     private struct JSONLDMetadata {
+        var creatorNames: [String] = []
         var title: String?
         var byline: String?
         var excerpt: String?
@@ -270,6 +272,11 @@ final class MetadataParser: ProcessorBase {
             } else if let headline {
                 meta.title = headline.trimmingCharacters(in: .whitespacesAndNewlines)
             }
+
+            let creators = candidate["creator"].map { ($0 as? [Any]) ?? [$0] } ?? []
+            meta.creatorNames = creators.compactMap {
+                ($0 as? String) ?? (($0 as? [String: Any])?["name"] as? String)
+            }.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
 
             if let author = candidate["author"] {
                 if let authorDict = author as? [String: Any],

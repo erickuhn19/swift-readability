@@ -65,6 +65,11 @@
         "59795348069fd503888a600_98254281.png",
         "18443890069fd50388a5de0_79655026.png"
       ]
+    },
+    "short-substantive-lead": {
+      "contentIncludes": [
+        "忘れられない夏の記憶"
+      ]
     }
   },
   "knownFailures": [

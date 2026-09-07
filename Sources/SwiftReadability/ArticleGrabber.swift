@@ -197,6 +197,10 @@ final class ArticleGrabber: ProcessorBase {
         let outputSettings = doc.outputSettings()
         let originalPrettyPrint = outputSettings.prettyPrint()
         outputSettings.prettyPrint(pretty: false)
+        // Capture explicit author labels before profile/chrome cleanup removes them.
+        let authorLabels = ((try? doc.select(
+            "[rel=author], [itemprop=author], [x-component-name=WriterProfile] dt, [x-component-name=AuthorProfile] dt"
+        ).array()) ?? []).map { getInnerText($0, regEx: regEx) }.filter { !$0.isEmpty } + metadata.creatorNames
         let pageCacheHtml = (try? page.html()) ?? ""
         outputSettings.prettyPrint(pretty: originalPrettyPrint)
 
@@ -291,6 +295,7 @@ final class ArticleGrabber: ProcessorBase {
                         articleContent: articleContent,
                         options: options,
                         metadata: metadata,
+                        authorLabels: authorLabels,
                         timing: timing,
                         linkDensityCache: linkDensityCache
                     )
@@ -300,7 +305,8 @@ final class ArticleGrabber: ProcessorBase {
                     articleContent: articleContent,
                     options: options,
                     metadata: metadata,
-                        linkDensityCache: linkDensityCache
+                    authorLabels: authorLabels,
+                    linkDensityCache: linkDensityCache
                 )
             }
 
@@ -1174,6 +1180,7 @@ final class ArticleGrabber: ProcessorBase {
     private func prepArticle(articleContent: Element,
                              options: ArticleGrabberOptions,
                              metadata: ArticleMetadata,
+                             authorLabels: [String],
                              timing: TimingSink? = nil,
                              linkDensityCache: LinkDensityCache) {
         if let timing {
@@ -1246,7 +1253,7 @@ final class ArticleGrabber: ProcessorBase {
                 _ = try? h1.tagName("h2")
             }
         }
-        removeLeadingCompactTextChrome(from: articleContent, linkDensityCache: linkDensityCache)
+        removeLeadingCompactTextChrome(from: articleContent, authorLabels: authorLabels, linkDensityCache: linkDensityCache)
 
         removeNodes(in: articleContent, tagName: "p") { paragraph in
             let imgCount = (try? paragraph.getElementsByTag("img").count) ?? 0
@@ -1821,7 +1828,7 @@ final class ArticleGrabber: ProcessorBase {
         return isCompactStandaloneBylineChrome(parent)
     }
 
-    private func removeLeadingCompactTextChrome(from articleContent: Element, linkDensityCache: LinkDensityCache) {
+    private func removeLeadingCompactTextChrome(from articleContent: Element, authorLabels: [String], linkDensityCache: LinkDensityCache) {
         var current: Element? = articleContent
         var phrasingCache: [ObjectIdentifier: Bool] = [:]
         while let container = current, let firstChild = container.children().firstSafe {
@@ -1832,7 +1839,7 @@ final class ArticleGrabber: ProcessorBase {
                 printAndRemove(node: firstChild, reason: "leading compact media action chrome")
                 continue
             }
-            if isCompactTextOnlyChrome(firstChild) {
+            if isCompactNonPrintOrAdNode(firstChild) || isKnownAuthorLabel(firstChild, authorLabels: authorLabels) {
                 printAndRemove(node: firstChild, reason: "leading compact text chrome")
                 continue
             }
@@ -1841,11 +1848,14 @@ final class ArticleGrabber: ProcessorBase {
         }
     }
 
-    private func isCompactTextOnlyChrome(_ node: Element) -> Bool {
+    private func isKnownAuthorLabel(_ node: Element, authorLabels: [String]) -> Bool {
         let text = getInnerText(node, regEx: regEx)
-        guard !text.isEmpty, text.count <= 100 else { return false }
-        if text.range(of: #"[。.!?！？]"#, options: .regularExpression) != nil { return false }
-        return ((try? node.select("a, h1, h2, h3, h4, h5, h6, img, figure, picture, iframe, object, embed").count) ?? 0) == 0
+        guard !text.isEmpty, text.count <= 100, !authorLabels.isEmpty else { return false }
+        var remainder = text
+        for label in authorLabels.sorted(by: { $0.count > $1.count }) {
+            remainder = remainder.replacingOccurrences(of: label, with: "")
+        }
+        return remainder.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func isCompactMediaActionChrome(_ node: Element, linkDensityCache: LinkDensityCache) -> Bool {
