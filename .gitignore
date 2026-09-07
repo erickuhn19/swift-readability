@@ -74,3 +74,9 @@ DerivedData/
 tmp-*/
 tmp-*
 node_modules/
+
+# Tuist generated files
+/Derived/
+/Package.resolved
+/SwiftReadability.xcodeproj/
+/swift-readability
