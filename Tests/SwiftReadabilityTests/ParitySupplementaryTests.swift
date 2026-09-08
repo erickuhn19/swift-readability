@@ -51,14 +51,16 @@ struct ParitySupplementaryTests {
         let inputParser = XMLParser(data: Data(source.utf8))
         #expect(inputParser.parse())
         let document = try SwiftSoup.parse(source, baseURL.absoluteString, Parser.xmlParser())
-        let result = try #require(Readability(
+        let parsedResult = try Readability(
             document: document,
             options: ReadabilityOptions(charThreshold: 0, useXMLSerializer: true)
-        ).parse())
+        ).parse()
+        let result = try #require(parsedResult)
         let parser = XMLParser(data: Data(("<root>" + result.content + "</root>").utf8))
         #expect(parser.parse(), "XML serializer returned invalid XML: \(String(describing: parser.parserError))")
         let parsed = try SwiftSoup.parse(result.content, baseURL.absoluteString, Parser.xmlParser())
-        let article = try #require(parsed.select("article").first())
+        let articles = try parsed.select("article")
+        let article = try #require(articles.first())
         #expect(article.hasAttr("itemscope"))
         #expect(try article.attr("itemscope") == "")
         #expect(try article.text().hasPrefix("Hello there."))
