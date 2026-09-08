@@ -6,6 +6,13 @@
     ]
   },
   "assertions": {
+    "repeated-title-preserves-intro": {
+      "contentIncludes": [
+        "開館日は十月一日です。利用には事前予約が必要です。",
+        "library-entrance.jpg",
+        "初めて訪れる人には、受付で館内の使い方を説明します。"
+      ]
+    },
     "asahi-junk-image": {
       "textExcludes": [
         "印刷する",
@@ -69,6 +76,12 @@
     "short-substantive-lead": {
       "contentIncludes": [
         "忘れられない夏の記憶"
+      ]
+    },
+    "short-substantive-lead-wrapped": {
+      "contentIncludes": [
+        "忘れられない夏の記憶",
+        "山道を越えて海に出た日"
       ]
     }
   },

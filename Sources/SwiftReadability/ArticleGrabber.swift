@@ -1223,7 +1223,7 @@ final class ArticleGrabber: ProcessorBase {
                 return self.isTextLengthLessThan(text, shareElementThreshold)
             }
         }
-        cleanArticleChrome(articleContent: articleContent, metadata: metadata, linkDensityCache: linkDensityCache)
+        cleanArticleChrome(articleContent: articleContent, metadata: metadata, authorLabels: authorLabels, linkDensityCache: linkDensityCache)
 
         if let timing {
             _ = timing.measure("grab.clean.iframe") { clean(e: articleContent, tag: "iframe") }
@@ -1729,6 +1729,7 @@ final class ArticleGrabber: ProcessorBase {
 
     private func cleanArticleChrome(articleContent: Element,
                                     metadata: ArticleMetadata,
+                                    authorLabels: [String],
                                     linkDensityCache: LinkDensityCache) {
         removeDuplicateTitleChrome(articleContent: articleContent, metadata: metadata)
 
@@ -1738,7 +1739,7 @@ final class ArticleGrabber: ProcessorBase {
 
         removeNodes(in: articleContent, tagName: "div") { node in
             if self.isCompactNonPrintOrAdNode(node) { return true }
-            if self.isCompactStandaloneBylineChrome(node) { return true }
+            if self.isCompactStandaloneBylineChrome(node, authorLabels: authorLabels) { return true }
             if self.isCompactRelatedSection(node, linkDensityCache: linkDensityCache) { return true }
             return false
         }
@@ -1748,7 +1749,7 @@ final class ArticleGrabber: ProcessorBase {
         }
 
         removeNodes(in: articleContent, tagName: "p") { paragraph in
-            self.isPRLabel(paragraph) || self.isCompactStandaloneBylineParagraph(paragraph)
+            self.isPRLabel(paragraph) || self.isCompactStandaloneBylineParagraph(paragraph, authorLabels: authorLabels)
         }
 
         removeCompactComponentContainers(
@@ -1766,13 +1767,8 @@ final class ArticleGrabber: ProcessorBase {
     private func removeDuplicateTitleChrome(articleContent: Element, metadata: ArticleMetadata) {
         guard let articleTitle = metadata.title, !articleTitle.isEmpty else { return }
 
-        removeNodes(in: articleContent, tagName: "div") { node in
-            if node === articleContent { return false }
-            guard self.getInnerText(node, regEx: self.regEx).count < 350 else { return false }
-            guard let headings = try? node.select("h1, h2"), !headings.isEmpty else { return false }
-            return headings.contains { self.headerDuplicatesTitle(node: $0, articleTitle: articleTitle) }
-        }
-
+        // A title heading can share its wrapper with an introduction or image.
+        // Remove the duplicate heading without discarding those siblings.
         removeNodes(in: articleContent, tagName: "h1") { heading in
             self.headerDuplicatesTitle(node: heading, articleTitle: articleTitle)
         }
@@ -1809,7 +1805,8 @@ final class ArticleGrabber: ProcessorBase {
         return getInnerText(node, regEx: regEx).count < 500
     }
 
-    private func isCompactStandaloneBylineChrome(_ node: Element) -> Bool {
+    private func isCompactStandaloneBylineChrome(_ node: Element, authorLabels: [String]) -> Bool {
+        guard isKnownAuthorLabel(node, authorLabels: authorLabels) else { return false }
         let text = getInnerText(node, regEx: regEx)
         guard !text.isEmpty, text.count <= 100 else { return false }
         if text.range(of: #"[。.!?！？]"#, options: .regularExpression) != nil { return false }
@@ -1821,11 +1818,11 @@ final class ArticleGrabber: ProcessorBase {
         return hasFollowingArticleBody(after: node)
     }
 
-    private func isCompactStandaloneBylineParagraph(_ paragraph: Element) -> Bool {
+    private func isCompactStandaloneBylineParagraph(_ paragraph: Element, authorLabels: [String]) -> Bool {
         guard let parent = paragraph.parent() else { return false }
         let parentText = getInnerText(parent, regEx: regEx)
         guard parentText == getInnerText(paragraph, regEx: regEx) else { return false }
-        return isCompactStandaloneBylineChrome(parent)
+        return isCompactStandaloneBylineChrome(parent, authorLabels: authorLabels)
     }
 
     private func removeLeadingCompactTextChrome(from articleContent: Element, authorLabels: [String], linkDensityCache: LinkDensityCache) {

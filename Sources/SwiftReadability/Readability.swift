@@ -472,7 +472,10 @@ private extension Readability {
             let outputSettings = serializationDoc.outputSettings()
             outputSettings.prettyPrint(pretty: false)
             outputSettings.syntax(syntax: .xml)
-            _ = try? serializationDoc.body()?.appendChild(articleContent)
+            outputSettings.escapeMode(.xhtml)
+            // XML parsing does not synthesize an HTML body. The extracted tree
+            // needs an actual document owner to inherit XML output settings.
+            _ = try? serializationDoc.appendChild(articleContent)
             return (try? articleContent.html()) ?? ""
         }
         if needsSerializationDoc {
@@ -488,16 +491,21 @@ private extension Readability {
         let outputSettings = document.outputSettings()
         let originalPrettyPrint = outputSettings.prettyPrint()
         let originalSyntax = outputSettings.syntax()
+        let originalEscapeMode = outputSettings.escapeMode()
+        defer {
+            outputSettings.prettyPrint(pretty: originalPrettyPrint)
+            outputSettings.syntax(syntax: originalSyntax)
+            outputSettings.escapeMode(originalEscapeMode)
+        }
         outputSettings.prettyPrint(pretty: false)
         outputSettings.syntax(syntax: effectiveUseXMLSerializer ? .xml : .html)
         if effectiveUseXMLSerializer {
+            outputSettings.escapeMode(.xhtml)
             normalizeBooleanAttributes(in: articleContent, sourceHTML: sourceHTML, explicitBooleanAttrs: explicitBooleanAttrs)
         } else {
             collapseBooleanAttributesForHTML(in: articleContent)
         }
         let html = (try? articleContent.html()) ?? ""
-        outputSettings.prettyPrint(pretty: originalPrettyPrint)
-        outputSettings.syntax(syntax: originalSyntax)
         return html
     }
 

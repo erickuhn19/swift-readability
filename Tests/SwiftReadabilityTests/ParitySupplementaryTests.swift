@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(FoundationXML)
+import FoundationXML
+#endif
 import SwiftSoup
 import Testing
 @testable import SwiftReadability
@@ -37,6 +40,28 @@ struct ParitySupplementaryTests {
         }
         #expect(result.content.contains("<img"))
         #expect(result.content.contains("/>"))
+    }
+
+    @Test func xmlDocumentSerializerReturnsWellFormedXML() throws {
+        let source = """
+        <?xml version="1.0"?><html xmlns="http://www.w3.org/1999/xhtml"><head><title>Article</title></head><body>
+        <article itemscope=""><p>Hello&#xa0;there. \(String(repeating: "A readable paragraph. ", count: 25))</p>
+        <p><img src="picture.jpg" /></p></article></body></html>
+        """
+        let inputParser = XMLParser(data: Data(source.utf8))
+        #expect(inputParser.parse())
+        let document = try SwiftSoup.parse(source, baseURL.absoluteString, Parser.xmlParser())
+        let result = try #require(Readability(
+            document: document,
+            options: ReadabilityOptions(charThreshold: 0, useXMLSerializer: true)
+        ).parse())
+        let parser = XMLParser(data: Data(("<root>" + result.content + "</root>").utf8))
+        #expect(parser.parse(), "XML serializer returned invalid XML: \(String(describing: parser.parserError))")
+        let parsed = try SwiftSoup.parse(result.content, baseURL.absoluteString, Parser.xmlParser())
+        let article = try #require(parsed.select("article").first())
+        #expect(article.hasAttr("itemscope"))
+        #expect(try article.attr("itemscope") == "")
+        #expect(try article.text().hasPrefix("Hello there."))
     }
 
     @Test func htmlSerializerDefaultUsesHtmlBooleanSyntax() throws {
