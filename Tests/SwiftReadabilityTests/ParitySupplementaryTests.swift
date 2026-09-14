@@ -24,6 +24,62 @@ struct ParitySupplementaryTests {
         #expect(result?.content.contains("new.") == true)
     }
 
+    @Test func shortLeadsSurviveBothChromeCleanupPasses() throws {
+        let bareLead = "忘れられない夏の記憶"
+        let wrappedLead = "夏夏"
+        let article = try parseArticle(
+            head: #"<meta name="author" content="夏">"#,
+            body: """
+            <article>
+              <div><p>\(wrappedLead)</p></div>
+              <p>\(bareLead)</p>
+              <p>\(longBody)</p>
+            </article>
+            """
+        )
+
+        #expect(article.content.contains(bareLead))
+        #expect(article.content.contains(wrappedLead))
+    }
+
+    @Test func explicitAuthorEvidenceRemovesOnlyTheByline() throws {
+        let lead = "A compact but substantive introduction"
+        let article = try parseArticle(
+            head: #"<meta name="author" content="Jane Doe">"#,
+            body: """
+            <article>
+              <div>Jane Doe</div>
+              <p>\(lead)</p>
+              <p>\(longBody)</p>
+            </article>
+            """
+        )
+
+        #expect(article.content.range(of: ">Jane Doe<", options: .caseInsensitive) == nil)
+        #expect(article.content.contains(lead))
+    }
+
+    @Test func duplicateTitleRemovalPreservesWrapperSiblings() throws {
+        let introduction = "開館日は十月一日です。利用には事前予約が必要です。"
+        let article = try parseArticle(
+            title: "東京の新しい図書館",
+            body: """
+            <article>
+              <div>
+                <h2>東京の新しい図書館</h2>
+                <p>\(introduction)</p>
+                <img src="https://example.com/library-entrance.jpg" alt="入口">
+              </div>
+              <p>\(longBody)</p>
+            </article>
+            """
+        )
+
+        #expect(article.content.contains(introduction))
+        #expect(article.content.contains("library-entrance.jpg"))
+        #expect(article.content.contains("<h2>東京の新しい図書館</h2>") == false)
+    }
+
     @Test func xmlSerializerOptionProducesXMLSyntax() throws {
         let html = "<html><body><p>hello there hello there hello there hello there hello there hello there hello there hello there hello there hello there.</p><p><img src=\"\"></p></body></html>"
         let reader = Readability(
@@ -37,6 +93,24 @@ struct ParitySupplementaryTests {
         }
         #expect(result.content.contains("<img"))
         #expect(result.content.contains("/>"))
+    }
+
+    private var longBody: String {
+        String(repeating: "This paragraph contains substantive article text for readability scoring. ", count: 12)
+    }
+
+    private func parseArticle(
+        title: String = "Article title",
+        head: String = "",
+        body: String
+    ) throws -> ReadabilityResult {
+        let html = "<html><head><title>\(title)</title>\(head)</head><body>\(body)</body></html>"
+        let result = try Readability(
+            html: html,
+            url: baseURL,
+            options: ReadabilityOptions(charThreshold: 0)
+        ).parse()
+        return try #require(result)
     }
 
     @Test func htmlSerializerDefaultUsesHtmlBooleanSyntax() throws {
